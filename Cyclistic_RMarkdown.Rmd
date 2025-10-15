@@ -1,0 +1,220 @@
+---
+title: "**Bikeshare_casestudy**"
+author: "Giang Nguyen"
+date: "15.10.2025"
+output: html_document
+---
+
+## Step 1: Ask - Define the business tasks
+### 1.1. Business Task
+
+Identify differences in bike usage between casual riders and annual members to create a marketing plan that converts casual riders into annual members.
+
+### 1.2. Questions for analysis
+
+* How do annual members and casual riders use Cyclistic bikes differently? What are casual rides usage patterns (e.g., trip length, days of the week, time of day) compared to members?
+* Why would casual riders buy Cyclistic annual memberships?
+* How can Cyclistic use digital media to influence casual riders to become members?
+
+## Step 2: Prepare - Collect and load data
+
+### 2.1. Install and load essential packages
+
+```{r}
+library(tidyverse) # For data manipulation and cleaning
+library(lubridate) # For handling date/time data
+library(ggplot2) # For visualizing data
+```
+
+### 2.2. Load data
+
+For this case study, I use these public datasets [Divvy 2019 Q1](https://docs.google.com/spreadsheets/d/1uCTsHlZLm4L7-ueaSLwDg0ut3BP_V4mKDo2IMpaXrk4/template/preview?resourcekey=0-dQAUjAu2UUCsLEQQt20PDA#gid=1797029090) and [Divvy 2020 Q1](https://docs.google.com/spreadsheets/d/179QVLO_yu5BJEKFVZShsKag74ZaUYIF6FevLYzs3hRc/template/preview#gid=640449855).
+
+```{r}
+q1_2019 <- read_csv("Divvy_Trips_2019_Q1.csv")
+q1_2020 <- read_csv("Divvy_Trips_2020_Q1.csv")
+```
+
+### 2.3. Initial Inspection
+
+```{r}
+colnames(q1_2019)
+colnames(q1_2020)
+str(q1_2019)
+str(q1_2020)
+```
+
+## Step 3: Process - Wrangle data and clean
+
+### 3.1. Rename q1_2019 columns to match q1_2020 columns
+
+```{r}
+q1_2019 <- q1_2019 %>% 
+rename(ride_id = trip_id,
+        rideable_type = bikeid, # This column hold bike type, but is 'bikeid' in q1_2019
+        started_at = start_time,
+        ended_at = end_time,
+        start_station_name = from_station_name,
+        end_station_name = to_station_name,
+        start_station_id = from_station_id,
+        end_station_id = to_station_id,
+        member_casual = usertype)
+```
+        
+### 3.2. Select, format, and combine data
+#### 3.2.1. Select consistent columns and convert data type for merging
+
+```{r convert data types}
+q1_2019 <- q1_2019 %>%
+  mutate(ride_id = as.character(ride_id),
+         rideable_type = as.character(rideable_type),
+         start_station_id = as.character(start_station_id),
+         end_station_id = as.character(end_station_id)) 
+
+q1_2020 <- q1_2020 %>%
+  mutate(ride_id = as.character(ride_id),
+         rideable_type = as.character(rideable_type),
+         start_station_id = as.character(start_station_id),
+         end_station_id = as.character(end_station_id))
+```
+
+```{r merging data}
+all_trips <- bind_rows(q1_2019, q1_2020)
+```
+
+#### 3.2.2. Remove the redundant/inconsistent columns
+
+```{r}
+all_trips <- all_trips %>% 
+  select(-c(gender, birthyear, tripduration, start_lat, start_lng, end_lat, end_lng))
+```
+  
+#### 3.2.3. Convert q1_2019 user types ('Subcriber', 'Customer') to the q1_2020 format ('member', 'casual')
+
+```{r}
+all_trips <- all_trips %>% 
+  mutate(member_casual = recode(member_casual,
+                                "Subscriber" = "member",
+                                "Customer" = "casual"))
+```
+
+                                
+#### 3.2.4. Create a new column 'ride_length' in seconds
+#Ensure 'started_at' and 'ended_at' are in datetime format first
+
+```{r}
+all_trips <- all_trips %>% 
+  mutate(started_at = ymd_hms(started_at),
+         ended_at = ymd_hms(ended_at),
+         ride_length = difftime(ended_at, started_at, units = "secs"))
+```
+
+#### 3.2.5. Create date/time components for analysis
+
+```{r}
+all_trips <- all_trips %>% 
+  mutate(date = as.Date(started_at),
+         month = month(started_at, label = TRUE),
+         day_of_week = wday(started_at, label = TRUE, abbr = FALSE),
+         year = year(started_at),
+         hour = hour(started_at))
+```
+         
+#### 3.2.6. Filter out negative/zero-length rides and rides longer than 24 hours (extreme outliers)
+
+```{r}
+all_trips_v2 <- all_trips %>% 
+  filter(ride_length > 60 & ride_length < 86400) #Filter for rides between 60s and 24 hours
+```
+
+#### 3.2.7. Drop any rows with missing station names that may interfere with station analysis
+
+```{r}
+all_trips_v2 <- na.omit(all_trips_v2)
+```
+
+## Step 4: Analyze - Aggregate and Summarize
+
+Use the cleaned data (all_trip_v2) to find key differences between **member** and **casual** riders.
+
+### 4.1. Overall Summary Statistics (Ride count and average ride length)
+
+```{r}
+all_trips_v2 %>% 
+  group_by(member_casual) %>% 
+  summarise(
+    total_rides = n(),
+    average_length_min = mean(ride_length)/60
+  )
+```
+
+### 4.2. Analyze usage by days of week
+
+```{r}
+all_trips_v2 %>% 
+  group_by(member_casual, day_of_week) %>% 
+  summarise(
+    number_of_rides = n(),
+    average_duration = mean(ride_length)
+  ) %>% 
+  arrange(member_casual, day_of_week)
+
+```
+
+### 4.3. Analyze usage by month
+
+```{r}
+all_trips_v2 %>% 
+  group_by(member_casual, month) %>% 
+  summarize(
+    number_of_rides = n(),
+    average_duration = mean(ride_length)
+  ) %>% 
+  arrange(member_casual, month)
+```
+### 4.4. Identify top 10 starting stations for each user type
+
+```{r}
+all_trips_v2 %>% 
+  group_by(member_casual, start_station_name) %>% 
+  summarise(ride_count = n()) %>% 
+  arrange(member_casual, desc(ride_count)) %>% 
+  slice(1:10)
+```
+
+## Step 5: Share - Visualizing data
+### 5.1. Compare total rides by days of week
+
+```{r}
+all_trips_v2 %>% 
+  group_by(member_casual, day_of_week) %>% 
+  summarize(number_of_rides = n(), .groups = 'drop') %>% 
+  ggplot(aes(x=day_of_week, y=number_of_rides, fill=member_casual)) +
+  geom_col(position = "dodge") +
+  labs( title = "Total rides by day of week and rider type",
+        x = "Day of the week",
+        y = "Number of rides",
+        fill = "Rider Type") +
+  scale_y_continuous(labels = scales::comma)
+```
+### 5.2. Average ride lenghth by day of week
+
+```{r}
+all_trips_v2 %>% 
+  group_by(member_casual, day_of_week) %>% 
+  summarise(average_duration = mean(ride_length)/60, .groups = 'drop') %>% 
+  ggplot(aes(x= day_of_week, y=average_duration, color = member_casual, group =member_casual)) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 2) +
+  labs(title = "Average ride lenghth by day of week",
+       x="Day of the week",
+       y="Average ride length (Minutes)",
+       color = "Rider Type")
+```
+
+## Step 6: Act - Formulate recommendations
+
+* Casual riders take significantly longer rides, especially on Wednesday and weekends. Hence, the **recommendation** is target casual riders with a "Warrior" promotion on Wednesday and weekends, highlighting the cost savings on long-duration rides compared to daily passes.
+* Casual rider activity peaks on Saturdays and Sundays. Therefore, the **recommendation** is launch a marketing campaign on Fridays that uses a time-sensitive incentive ("Unlock your first month free with an annual pass this weekend!") to capture their weekend leisure demand.
+* Members primarily use the service during weekday for short trips. So, the **recommendation** is focus digital ads (geotargeted around popular weekend leisure spots) that emphasize the convenience and unlimited nature of annual passes for recurring fun trips.
+* Target Locations: Focus all physical and digital marketing efforts (geo-fencing, digital screens) at and around the top three casual starting stations: Streeter Dr & Grand Ave, Lake Shore Dr & Monroe St, Shedd Aquarium.
