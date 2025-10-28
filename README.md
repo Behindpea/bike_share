@@ -1,4 +1,4 @@
-# My First Awesome Project
+# My First Awesome Project - Bike Share
 
 This is my first project in R, used to identify differences in bike usage between casual riders and annual members to create a marketing plan that converts casual riders into annual members.
 
