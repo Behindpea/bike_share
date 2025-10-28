@@ -7,7 +7,7 @@ This is my first project in R, used to identify differences in bike usage betwee
 
 The structured steps (Ask, Prepare, Process, Analyze, Share, Act) are essential because the two datasets (2019_Q1 and 2020_Q1) are inconsistent in format and structure, yet need to be combined to achieve the project's goal.
 
-## 💻 Steps in RMarkdown
+## 💻 Steps in RStudio
 Please take a look at the [.Rmd](https://github.com/Behindpea/bike_share/blob/main/Cyclistic_RMarkdown.Rmd) file to have more detail
 
 * Step 1: Ask - Define the business tasks
